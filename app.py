@@ -305,8 +305,22 @@ if target_issue_file is not None:
         st.error(f"目標発行件数マスタの読み込みに失敗しました：{e}")
         st.stop()
         
-ta = read_target(TARGET_APPLY_PATH)
-ti = read_target(TARGET_ISSUE_PATH)
+ta = None
+ti = None
+
+if target_apply_file is not None:
+    try:
+        ta = read_target(target_apply_file)
+    except Exception as e:
+        st.error(f"目標申込件数マスタの読み込みに失敗しました：{e}")
+        st.stop()
+
+if target_issue_file is not None:
+    try:
+        ti = read_target(target_issue_file)
+    except Exception as e:
+        st.error(f"目標発行件数マスタの読み込みに失敗しました：{e}")
+        st.stop()
 
 ra = process_raw(dfa, af, start, end, "申込")
 ri = process_raw(dfi, af, start, end, "発行")
