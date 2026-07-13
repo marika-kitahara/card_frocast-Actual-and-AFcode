@@ -4,11 +4,6 @@ from io import BytesIO
 
 st.set_page_config(page_title="実績データ集計", layout="wide")
 
-AF_MASTER_PATH = "AFマスター.xlsx"
-AFF_ONLY_PATH = "AFF_AFコード.xlsx"
-TARGET_APPLY_PATH = "目標申込件数マスター.xlsx"
-TARGET_ISSUE_PATH = "目標発行件数マスター.xlsx"
-
 DM_CODES = {
     "MCS056",
     "APD023",
@@ -86,11 +81,17 @@ def read_target(path):
     return df
 
 def get_target(df, date, assign):
+    # 目標マスタが未アップロードなら0
+    if df is None or df.empty:
+        return 0
+
     row = df[df["日付"] == date]
+
     if row.empty or assign not in df.columns:
         return 0
-    v = row.iloc[0][assign]
-    return 0 if pd.isna(v) else v
+
+    value = row.iloc[0][assign]
+    return 0 if pd.isna(value) else value
 
 # ======================
 # ローデータ処理
@@ -185,12 +186,75 @@ def to_excel(area_a, area_i, blocks_a, blocks_i, raw):
 # ======================
 st.title("📊 実績データ集計")
 
-apply = st.file_uploader("📤 申込データ", type="xlsx")
-issue = st.file_uploader("📤 発行データ", type="xlsx")
+st.subheader("マスタファイル")
 
-if not apply or not issue:
+af_master_file = st.file_uploader(
+    "📤 AFマスタ",
+    type=["xlsx"],
+    key="af_master"
+)
+
+st.markdown(
+    "[📂 AFマスタはこちら]"
+    "(https://rak.box.com/s/jmks0tjanuskp957lq4wmepun5cpm5xd)"
+)
+
+aff_master_file = st.file_uploader(
+    "📤 AFFマスタ",
+    type=["xlsx"],
+    key="aff_master"
+)
+
+st.markdown(
+    "[📂 AFFマスタはこちら]"
+    "(https://rak.box.com/s/rtkp5rshiwqsa69pkezl13881b552oe0)"
+)
+
+target_apply_file = st.file_uploader(
+    "📤 目標申込件数マスタ（任意）",
+    type=["xlsx"],
+    key="target_apply"
+)
+
+target_issue_file = st.file_uploader(
+    "📤 目標発行件数マスタ（任意）",
+    type=["xlsx"],
+    key="target_issue"
+)
+
+st.subheader("実績データ")
+
+apply = st.file_uploader(
+    "📤 申込データ",
+    type=["xlsx"],
+    key="apply"
+)
+
+issue = st.file_uploader(
+    "📤 発行データ",
+    type=["xlsx"],
+    key="issue"
+)
+required_files = {
+    "AFマスタ": af_master_file,
+    "AFFマスタ": aff_master_file,
+    "申込データ": apply,
+    "発行データ": issue,
+}
+
+missing_files = [
+    name
+    for name, uploaded_file in required_files.items()
+    if uploaded_file is None
+]
+
+if missing_files:
+    st.info(
+        "次の必須ファイルをアップロードしてください："
+        + "、".join(missing_files)
+    )
     st.stop()
-
+    
 dfa = pd.read_excel(apply)
 dfi = pd.read_excel(issue)
 
@@ -210,11 +274,37 @@ if len(date_range) != 2:
 
 start, end = map(pd.to_datetime, date_range)
 
-af = pd.concat(
-    [read_af_master(AF_MASTER_PATH), read_aff_master(AFF_ONLY_PATH)],
-    ignore_index=True
-)
+try:
+    af = pd.concat(
+        [
+            read_af_master(af_master_file),
+            read_aff_master(aff_master_file),
+        ],
+        ignore_index=True
+    )
+except Exception as e:
+    st.error(f"AF・AFFマスタの読み込みに失敗しました：{e}")
+    st.stop()
 
+
+# 目標マスタは任意
+ta = None
+ti = None
+
+if target_apply_file is not None:
+    try:
+        ta = read_target(target_apply_file)
+    except Exception as e:
+        st.error(f"目標申込件数マスタの読み込みに失敗しました：{e}")
+        st.stop()
+
+if target_issue_file is not None:
+    try:
+        ti = read_target(target_issue_file)
+    except Exception as e:
+        st.error(f"目標発行件数マスタの読み込みに失敗しました：{e}")
+        st.stop()
+        
 ta = read_target(TARGET_APPLY_PATH)
 ti = read_target(TARGET_ISSUE_PATH)
 
