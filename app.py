@@ -97,8 +97,18 @@ def get_target(df, date, assign):
 # ローデータ処理
 # ======================
 def process_raw(df_raw, af_master, start, end, kind):
-    af_map = (
+    # AFマスタとAFFマスタを結合した際に同じAFコードが複数存在しても
+    # to_dict("index") でエラーにならないよう、AFコードを一意化する。
+    # 先に読み込んでいるAFマスタ側を優先する。
+    af_unique = (
         af_master
+        .copy()
+        .loc[lambda x: x["AFコード"] != ""]
+        .drop_duplicates(subset=["AFコード"], keep="first")
+    )
+
+    af_map = (
+        af_unique
         .set_index("AFコード")[["割り振り", "領域"]]
         .to_dict("index")
     )
@@ -264,9 +274,22 @@ dfi.rename(columns={dfi.columns[0]: "日付"}, inplace=True)
 dfa["日付"] = dfa["日付"].apply(convert_date)
 dfi["日付"] = dfi["日付"].apply(convert_date)
 
+# 申込・発行データのうち、存在する最新日を基準に
+# デフォルト期間を「最新日の月の1日 ～ 最新日」に固定する。
+all_dates = pd.concat([dfa["日付"], dfi["日付"]], ignore_index=True).dropna()
+
+if all_dates.empty:
+    st.error("申込データ・発行データに有効な日付がありません。")
+    st.stop()
+
+latest_date = all_dates.max()
+default_start = latest_date.replace(day=1)
+
 date_range = st.date_input(
     "📅 期間選択",
-    [dfa["日付"].min(), dfa["日付"].max()]
+    value=(default_start.date(), latest_date.date()),
+    min_value=all_dates.min().date(),
+    max_value=latest_date.date(),
 )
 
 if len(date_range) != 2:
