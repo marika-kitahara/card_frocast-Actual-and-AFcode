@@ -73,26 +73,6 @@ def read_aff_master(path):
 
     return df
 
-def read_target(path):
-    df = pd.read_excel(path, header=4)
-    df.columns = df.columns.map(normalize)
-    df.rename(columns={df.columns[1]: "日付"}, inplace=True)
-    df["日付"] = pd.to_datetime(df["日付"])
-    return df
-
-def get_target(df, date, assign):
-    # 目標マスタが未アップロードなら0
-    if df is None or df.empty:
-        return 0
-
-    row = df[df["日付"] == date]
-
-    if row.empty or assign not in df.columns:
-        return 0
-
-    value = row.iloc[0][assign]
-    return 0 if pd.isna(value) else value
-
 # ======================
 # ローデータ処理
 # ======================
@@ -149,43 +129,29 @@ def process_raw(df_raw, af_master, start, end, kind):
     )
 
 # ===============================
-# 割り振り別ブロック（修正版）
+# 割り振り別実績ブロック
 # ===============================
-def create_blocks(df, target):
+def create_actual_block(df):
     act = df.pivot_table(
         index="日付", columns="割り振り", values="実績",
         aggfunc="sum", fill_value=0
-    )
+    ).astype(float)
 
-    # ✅ ここ超重要
-    act = act.astype(float)
-    tar = act.copy()
-
-    for d in act.index:
-        for c in act.columns:
-            tar.loc[d, c] = float(get_target(target, d, c))
-
-    for t in (act, tar):
-        t["total"] = t.sum(axis=1)
-        t.index = t.index.strftime("%Y/%m/%d")
-
-    gap = act - tar
-    ratio = act.divide(tar.replace(0, pd.NA)).fillna(0)
-
-    return act, tar, gap, ratio
+    act["total"] = act.sum(axis=1)
+    act.index = act.index.strftime("%Y/%m/%d")
+    return act
 
 # ======================
 # Excel 出力
 # ======================
-def to_excel(area_a, area_i, blocks_a, blocks_i, raw):
+def to_excel(actual_a, actual_i, raw):
     output = BytesIO()
 
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
 
-        # ---- 割り振り別 ----
-        for label, blocks in [("申込", blocks_a), ("発行", blocks_i)]:
-            for name, df in zip(["実績", "目標", "GAP", "比率"], blocks):
-                df.to_excel(writer, sheet_name=f"{label}_{name}")
+        # ---- 割り振り別実績 ----
+        actual_a.to_excel(writer, sheet_name="申込_実績")
+        actual_i.to_excel(writer, sheet_name="発行_実績")
 
         raw.to_excel(writer, sheet_name="ローデータ", index=False)
 
@@ -218,18 +184,6 @@ aff_master_file = st.file_uploader(
 st.markdown(
     "[📂 AFFマスタはこちら]"
     "(https://rak.box.com/s/rtkp5rshiwqsa69pkezl13881b552oe0)"
-)
-
-target_apply_file = st.file_uploader(
-    "📤 目標申込件数マスタ（任意）",
-    type=["xlsx"],
-    key="target_apply"
-)
-
-target_issue_file = st.file_uploader(
-    "📤 目標発行件数マスタ（任意）",
-    type=["xlsx"],
-    key="target_issue"
 )
 
 st.subheader("実績データ")
@@ -310,41 +264,6 @@ except Exception as e:
     st.stop()
 
 
-# 目標マスタは任意
-ta = None
-ti = None
-
-if target_apply_file is not None:
-    try:
-        ta = read_target(target_apply_file)
-    except Exception as e:
-        st.error(f"目標申込件数マスタの読み込みに失敗しました：{e}")
-        st.stop()
-
-if target_issue_file is not None:
-    try:
-        ti = read_target(target_issue_file)
-    except Exception as e:
-        st.error(f"目標発行件数マスタの読み込みに失敗しました：{e}")
-        st.stop()
-        
-ta = None
-ti = None
-
-if target_apply_file is not None:
-    try:
-        ta = read_target(target_apply_file)
-    except Exception as e:
-        st.error(f"目標申込件数マスタの読み込みに失敗しました：{e}")
-        st.stop()
-
-if target_issue_file is not None:
-    try:
-        ti = read_target(target_issue_file)
-    except Exception as e:
-        st.error(f"目標発行件数マスタの読み込みに失敗しました：{e}")
-        st.stop()
-
 ra = process_raw(dfa, af, start, end, "申込")
 ri = process_raw(dfi, af, start, end, "発行")
 
@@ -406,21 +325,11 @@ st.dataframe(make_summary_df(area_issue), use_container_width=True)
 
 # ---- ローデータ ----
 raw = pd.concat([ra, ri], ignore_index=True)
-raw["目標"] = raw.apply(
-    lambda r: get_target(
-        ta if r["種別"] == "申込" else ti,
-        r["日付"],
-        r["割り振り"]
-    ),
-    axis=1
-)
 raw["日付"] = raw["日付"].dt.strftime("%Y/%m/%d")
 
 excel = to_excel(
-    area_apply,
-    area_issue,
-    create_blocks(ra, ta),
-    create_blocks(ri, ti),
+    create_actual_block(ra),
+    create_actual_block(ri),
     raw
 )
 
