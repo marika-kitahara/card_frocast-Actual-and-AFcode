@@ -144,16 +144,79 @@ def create_actual_block(df):
 # ======================
 # Excel 出力
 # ======================
-def to_excel(actual_a, actual_i, raw):
+def to_excel(
+    actual_a,
+    actual_i,
+    raw,
+    summary_apply,
+    summary_issue
+):
     output = BytesIO()
 
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
 
-        # ---- 割り振り別実績 ----
-        actual_a.to_excel(writer, sheet_name="申込_実績")
-        actual_i.to_excel(writer, sheet_name="発行_実績")
+        # ======================
+        # サマリシート
+        # ======================
+        sheet_name = "サマリ"
 
-        raw.to_excel(writer, sheet_name="ローデータ", index=False)
+        row = 0
+
+        pd.DataFrame([["申込"]]).to_excel(
+            writer,
+            sheet_name=sheet_name,
+            startrow=row,
+            index=False,
+            header=False
+        )
+
+        row += 1
+
+        summary_apply.to_excel(
+            writer,
+            sheet_name=sheet_name,
+            startrow=row
+        )
+
+        row += len(summary_apply) + 4
+
+        pd.DataFrame([["発行"]]).to_excel(
+            writer,
+            sheet_name=sheet_name,
+            startrow=row,
+            index=False,
+            header=False
+        )
+
+        row += 1
+
+        summary_issue.to_excel(
+            writer,
+            sheet_name=sheet_name,
+            startrow=row
+        )
+
+        # ======================
+        # 割り振り別実績
+        # ======================
+        actual_a.to_excel(
+            writer,
+            sheet_name="申込_実績"
+        )
+
+        actual_i.to_excel(
+            writer,
+            sheet_name="発行_実績"
+        )
+
+        # ======================
+        # ローデータ
+        # ======================
+        raw.to_excel(
+            writer,
+            sheet_name="ローデータ",
+            index=False
+        )
 
     return output.getvalue()
 
@@ -310,8 +373,13 @@ area_apply = ra.pivot_table(
     fill_value=0
 )
 area_apply = ensure_area_rows(area_apply)
-st.dataframe(make_summary_df(area_apply), use_container_width=True)
 
+summary_apply = make_summary_df(area_apply)
+
+st.dataframe(
+    summary_apply,
+    use_container_width=True
+)
 st.markdown("### 発行")
 area_issue = ri.pivot_table(
     index="領域",
@@ -321,8 +389,13 @@ area_issue = ri.pivot_table(
     fill_value=0
 )
 area_issue = ensure_area_rows(area_issue)
-st.dataframe(make_summary_df(area_issue), use_container_width=True)
 
+summary_issue = make_summary_df(area_issue)
+
+st.dataframe(
+    summary_issue,
+    use_container_width=True
+)
 # ---- ローデータ ----
 raw = pd.concat([ra, ri], ignore_index=True)
 raw["日付"] = raw["日付"].dt.strftime("%Y/%m/%d")
@@ -330,7 +403,9 @@ raw["日付"] = raw["日付"].dt.strftime("%Y/%m/%d")
 excel = to_excel(
     create_actual_block(ra),
     create_actual_block(ri),
-    raw
+    raw,
+    summary_apply,
+    summary_issue
 )
 
 st.download_button(
