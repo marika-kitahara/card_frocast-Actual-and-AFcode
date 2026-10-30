@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 
-st.set_page_config(page_title="実績データ集計", layout="wide")
+st.set_page_config(page_title="実績データ集計(マジ得集計用)", layout="wide")
 
 DM_CODES = {
     "MCS056",
@@ -25,9 +25,6 @@ AREA_NAME_MAP = {
     "dm": "DM"
 }
 
-# ======================
-# 共通関数
-# ======================
 def normalize(val):
     if pd.isna(val):
         return ""
@@ -40,9 +37,6 @@ def convert_date(val):
     except:
         return pd.NaT
 
-# ======================
-# マスタ読込
-# ======================
 def read_af_master(path):
     df = pd.read_excel(path, header=None)
 
@@ -73,9 +67,6 @@ def read_aff_master(path):
 
     return df
 
-# ======================
-# ローデータ処理
-# ======================
 def process_raw(df_raw, af_master, start, end, kind):
     # AFマスタとAFFマスタを結合した際に同じAFコードが複数存在しても
     # to_dict("index") でエラーにならないよう、AFコードを一意化する。
@@ -106,7 +97,6 @@ def process_raw(df_raw, af_master, start, end, kind):
             code = normalize(col)
             info = af_map.get(code)
 
-            # DMコードはマスター未登録でもDMとして集計
             if code in DM_CODES:
                 rows.append(
                     [kind, r["日付"], code, "DM", r[col]]
@@ -128,9 +118,6 @@ def process_raw(df_raw, af_master, start, end, kind):
         .sum()
     )
 
-# ===============================
-# 割り振り別実績ブロック
-# ===============================
 def create_actual_block(df):
     act = df.pivot_table(
         index="日付", columns="割り振り", values="実績",
@@ -141,9 +128,6 @@ def create_actual_block(df):
     act.index = act.index.strftime("%Y/%m/%d")
     return act
 
-# ======================
-# Excel 出力
-# ======================
 def to_excel(
     actual_a,
     actual_i,
@@ -155,9 +139,6 @@ def to_excel(
 
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
 
-        # ======================
-        # サマリシート
-        # ======================
         sheet_name = "サマリ"
 
         row = 0
@@ -196,9 +177,6 @@ def to_excel(
             startrow=row
         )
 
-        # ======================
-        # 割り振り別実績
-        # ======================
         actual_a.to_excel(
             writer,
             sheet_name="申込_実績"
@@ -209,9 +187,6 @@ def to_excel(
             sheet_name="発行_実績"
         )
 
-        # ======================
-        # ローデータ
-        # ======================
         raw.to_excel(
             writer,
             sheet_name="ローデータ",
@@ -220,11 +195,7 @@ def to_excel(
 
     return output.getvalue()
 
-# ======================
-# UI
-# ======================
-st.title("📊 実績データ集計")
-
+st.title("📊 実績データ集計(マジ得集計用)")
 st.subheader("マスタファイル")
 
 af_master_file = st.file_uploader(
@@ -291,8 +262,6 @@ dfi.rename(columns={dfi.columns[0]: "日付"}, inplace=True)
 dfa["日付"] = dfa["日付"].apply(convert_date)
 dfi["日付"] = dfi["日付"].apply(convert_date)
 
-# 申込・発行データのうち、存在する最新日を基準に
-# デフォルト期間を「最新日の月の1日 ～ 最新日」に固定する。
 all_dates = pd.concat([dfa["日付"], dfi["日付"]], ignore_index=True).dropna()
 
 if all_dates.empty:
@@ -326,34 +295,27 @@ except Exception as e:
     st.error(f"AF・AFFマスタの読み込みに失敗しました：{e}")
     st.stop()
 
-
 ra = process_raw(dfa, af, start, end, "申込")
 ri = process_raw(dfi, af, start, end, "発行")
 
-# ---- サマリ ----
 st.subheader("📌 サマリ（領域別）")
 
 def ensure_area_rows(area_df):
     df = area_df.copy()
 
-    # 領域名の表記ゆれを統一する
     df.index = [
         AREA_NAME_MAP.get(normalize(idx).lower(), normalize(idx))
         for idx in df.index
     ]
 
-    # 表記ゆれで同じ領域が複数できた場合は合算する
     df = df.groupby(level=0).sum()
 
-    # DMなど、実績がない領域も0行として追加する
     for area in AREA_ORDER:
         if area not in df.index:
             df.loc[area] = 0
 
-    # 表示順を固定する
     extra_areas = [idx for idx in df.index if idx not in AREA_ORDER]
     return df.reindex(AREA_ORDER + extra_areas, fill_value=0)
-
 
 def make_summary_df(area_df):
     df = area_df.copy()
@@ -396,7 +358,6 @@ st.dataframe(
     summary_issue,
     use_container_width=True
 )
-# ---- ローデータ ----
 raw = pd.concat([ra, ri], ignore_index=True)
 raw["日付"] = raw["日付"].dt.strftime("%Y/%m/%d")
 
