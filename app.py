@@ -197,42 +197,39 @@ def to_excel(
 
 st.title("📊 実績データ集計(マジ得集計用)")
 st.subheader("マスタファイル")
+master_left, master_right = st.columns(2, gap="medium")
 
-af_master_file = st.file_uploader(
-    "📤 AFマスタ",
-    type=["xlsx"],
-    key="af_master"
-)
+with master_left:
+    af_master_file = st.file_uploader(
+        "📤 AFマスタ", type=["xlsx"], key="af_master"
+    )
+    st.markdown(
+        "[📂 AFマスタはこちら]"
+        "(https://rak.box.com/s/jmks0tjanuskp957lq4wmepun5cpm5xd)"
+    )
 
-st.markdown(
-    "[📂 AFマスタはこちら]"
-    "(https://rak.box.com/s/jmks0tjanuskp957lq4wmepun5cpm5xd)"
-)
-
-aff_master_file = st.file_uploader(
-    "📤 AFFマスタ",
-    type=["xlsx"],
-    key="aff_master"
-)
-
-st.markdown(
-    "[📂 AFFマスタはこちら]"
-    "(https://rak.box.com/s/rtkp5rshiwqsa69pkezl13881b552oe0)"
-)
+with master_right:
+    aff_master_file = st.file_uploader(
+        "📤 AFFマスタ", type=["xlsx"], key="aff_master"
+    )
+    st.markdown(
+        "[📂 AFFマスタはこちら]"
+        "(https://rak.box.com/s/rtkp5rshiwqsa69pkezl13881b552oe0)"
+    )
 
 st.subheader("実績データ")
+actual_left, actual_right = st.columns(2, gap="medium")
 
-apply = st.file_uploader(
-    "📤 申込データ",
-    type=["xlsx"],
-    key="apply"
-)
+with actual_left:
+    apply = st.file_uploader(
+        "📤 申込データ", type=["xlsx"], key="apply"
+    )
 
-issue = st.file_uploader(
-    "📤 発行データ",
-    type=["xlsx"],
-    key="issue"
-)
+with actual_right:
+    issue = st.file_uploader(
+        "📤 発行データ", type=["xlsx"], key="issue"
+    )
+
 required_files = {
     "AFマスタ": af_master_file,
     "AFFマスタ": aff_master_file,
